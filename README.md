@@ -204,73 +204,53 @@ This updated framework is highly dynamic, flexible, and robust for managing feat
 
 ######################£#£££££££££££££££
 
-Absolutely! Here's the converted TypeScript version of the script:
-// Dependencies (assuming installed with npm or yarn)
-import * as fs from 'fs'; // File system access
-import * as path from 'path'; // Path manipulation
+import * as fs from "fs";
+import * as path from "path";
 
-// Interface for Test Data
-interface TestData {
-  client_num: number;
+interface ClientData {
+  client_num: string;
   client_name: string;
 }
 
-async function generateNewFeatureFile(
-  existingFeatureFile: string,
-  newFeatureFile: string,
-  jsonDataFile: string
-): Promise<void> {
-  // Read existing feature file content
-  const existingContent = await fs.promises.readFile(existingFeatureFile, 'utf-8');
+const updateFeatureFile = (existingFeatureFilePath: string, jsonFilePath: string, outputFilePath: string) => {
+  try {
+    // Read and parse the JSON file
+    const jsonData = fs.readFileSync(jsonFilePath, "utf-8");
+    const clients: ClientData[] = JSON.parse(jsonData);
 
-  // Read test data from JSON file
-  const testData: TestData[] = JSON.parse(await fs.promises.readFile(jsonDataFile, 'utf-8'));
+    // Read the existing feature file
+    const existingContent = fs.readFileSync(existingFeatureFilePath, "utf-8");
 
-  // Regular expression for example section pattern
-  const exampleSectionPattern = /Examples:\n\s*\|\s*\/testData\/sample_data\.json\s*\|/;
+    // Construct the new "Examples" section
+    let examplesSection = "    Examples:\n";
+    clients.forEach((client) => {
+      examplesSection += `      | ${client.client_num} | ${client.client_name} |\n`;
+    });
 
-  // Check if example section exists
-  const match = exampleSectionPattern.exec(existingContent);
-  if (!match) {
-    throw new Error('Could not find the example section in the existing feature file.');
+    // Replace the "Examples" section in the existing feature file
+    const updatedContent = existingContent.replace(
+      /Examples:\n([\s\S]*?)(\n\s*\n|$)/,
+      `${examplesSection}\n`
+    );
+
+    // Write the updated content to the output file
+    fs.writeFileSync(outputFilePath, updatedContent, "utf-8");
+    console.log(`Feature file updated successfully at: ${outputFilePath}`);
+  } catch (error) {
+    console.error("Error updating feature file:", error.message);
   }
+};
 
-  // Construct the new example section
-  let newExampleSection = `Examples:\n| client_num | client_name |\n`;
-  for (const data of testData) {
-    newExampleSection += `| ${data.client_num} | ${data.client_name} |\n`;
-  }
+// Path to the existing feature file
+const existingFeatureFilePath = path.resolve(__dirname, "existing_feature.feature");
 
-  // Replace old example section with new one
-  const newContent = existingContent.replace(exampleSectionPattern, newExampleSection);
+// Path to the JSON file
+const jsonFilePath = path.resolve(__dirname, "sample_data.json");
 
-  // Write the new feature file content
-  await fs.promises.writeFile(newFeatureFile, newContent);
-}
+// Path to save the updated feature file
+const outputFilePath = path.resolve(__dirname, "updated_feature.feature");
 
-// Example usage (assuming paths are correct)
-const existingFile = path.join(__dirname, 'existing_feature.feature');
-const newFile = path.join(__dirname, 'new_feature.feature');
-const jsonData = path.join(__dirname, 'test_data.json');
-
-generateNewFeatureFile(existingFile, newFile, jsonData)
-  .then(() => console.log('New feature file generated successfully!'))
-  .catch((error) => console.error('Error:', error));
-
-
-Key Changes:
- * Imports: We import fs and path for file system access and path manipulation.
- * Asynchronous Handling: We use async/await syntax for asynchronous operations like reading and writing files.
- * Interface: We define an interface called TestData to represent the expected structure of the JSON data.
- * Error Handling: We use try...catch blocks for robust error handling.
- * Path Handling: We use path.join to construct absolute file paths.
- * Example Usage: We demonstrate how to call the function with proper error handling.
-Running the Script:
- * Save the code as a TypeScript file (e.g., generateFeatureFile.ts).
- * Install required dependencies (fs and path are typically included in Node.js).
- * Run the script using ts-node:
-   npx ts-node generateFeatureFile.ts
-
-This version provides a more robust and type-safe solution using TypeScript for Playwright. Remember to adjust the file paths according to your project structure.
+// Update the feature file
+updateFeatureFile(existingFeatureFilePath, jsonFilePath, outputFilePath);
 
 
