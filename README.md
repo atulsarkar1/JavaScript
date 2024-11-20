@@ -202,3 +202,75 @@ The modular design supports easy extension for additional test cases and scenari
 This updated framework is highly dynamic, flexible, and robust for managing feature-driven tests in Playwright.
 
 
+######################£#£££££££££££££££
+
+Absolutely! Here's the converted TypeScript version of the script:
+// Dependencies (assuming installed with npm or yarn)
+import * as fs from 'fs'; // File system access
+import * as path from 'path'; // Path manipulation
+
+// Interface for Test Data
+interface TestData {
+  client_num: number;
+  client_name: string;
+}
+
+async function generateNewFeatureFile(
+  existingFeatureFile: string,
+  newFeatureFile: string,
+  jsonDataFile: string
+): Promise<void> {
+  // Read existing feature file content
+  const existingContent = await fs.promises.readFile(existingFeatureFile, 'utf-8');
+
+  // Read test data from JSON file
+  const testData: TestData[] = JSON.parse(await fs.promises.readFile(jsonDataFile, 'utf-8'));
+
+  // Regular expression for example section pattern
+  const exampleSectionPattern = /Examples:\n\s*\|\s*\/testData\/sample_data\.json\s*\|/;
+
+  // Check if example section exists
+  const match = exampleSectionPattern.exec(existingContent);
+  if (!match) {
+    throw new Error('Could not find the example section in the existing feature file.');
+  }
+
+  // Construct the new example section
+  let newExampleSection = `Examples:\n| client_num | client_name |\n`;
+  for (const data of testData) {
+    newExampleSection += `| ${data.client_num} | ${data.client_name} |\n`;
+  }
+
+  // Replace old example section with new one
+  const newContent = existingContent.replace(exampleSectionPattern, newExampleSection);
+
+  // Write the new feature file content
+  await fs.promises.writeFile(newFeatureFile, newContent);
+}
+
+// Example usage (assuming paths are correct)
+const existingFile = path.join(__dirname, 'existing_feature.feature');
+const newFile = path.join(__dirname, 'new_feature.feature');
+const jsonData = path.join(__dirname, 'test_data.json');
+
+generateNewFeatureFile(existingFile, newFile, jsonData)
+  .then(() => console.log('New feature file generated successfully!'))
+  .catch((error) => console.error('Error:', error));
+
+
+Key Changes:
+ * Imports: We import fs and path for file system access and path manipulation.
+ * Asynchronous Handling: We use async/await syntax for asynchronous operations like reading and writing files.
+ * Interface: We define an interface called TestData to represent the expected structure of the JSON data.
+ * Error Handling: We use try...catch blocks for robust error handling.
+ * Path Handling: We use path.join to construct absolute file paths.
+ * Example Usage: We demonstrate how to call the function with proper error handling.
+Running the Script:
+ * Save the code as a TypeScript file (e.g., generateFeatureFile.ts).
+ * Install required dependencies (fs and path are typically included in Node.js).
+ * Run the script using ts-node:
+   npx ts-node generateFeatureFile.ts
+
+This version provides a more robust and type-safe solution using TypeScript for Playwright. Remember to adjust the file paths according to your project structure.
+
+
