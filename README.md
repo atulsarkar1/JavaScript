@@ -1,69 +1,30 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
 
-interface ClientData {
-  client_num: string;
-  client_name: string;
+function findJSONExamples(directory: string) {
+  fs.readdirSync(directory, { withFileTypes: true }).forEach(dirent => {
+    const fullPath = `${directory}/${dirent.name}`;
+
+    if (dirent.isDirectory()) {
+      findJSONExamples(fullPath);
+    } else if (dirent.isFile() && dirent.name.endsWith('.feature')) {
+      const fileContent = fs.readFileSync(fullPath, 'utf8');
+
+      const regex = /Examples:\s*\|(.*)\|/g;
+      let match;
+
+      while ((match = regex.exec(fileContent)) !== null) {
+        const exampleLine = match[1];
+        const exampleValues = exampleLine.split('|');
+
+        for (const value of exampleValues) {
+          if (value.trim().endsWith('.json')) {
+            console.log(`JSON Example found in ${fullPath}: ${value}`);
+          }
+        }
+      }
+    }
+  });
 }
 
-export const updateFeatureFile = async (existingFeatureFilePath: string, outputFilePath: string) => {
-  try {
-    // Read the existing feature file
-    const existingContent = fs.readFileSync(existingFeatureFilePath, "utf-8");
-
-    // Extract the JSON file path from the "Examples" section
-    const jsonPathMatch = existingContent.match(/Examples:\s*\|(.+)\|/);
-    if (!jsonPathMatch) {
-      throw new Error("JSON file path not found in the Examples section.");
-    }
-
-    // Trim whitespace and get the path
-    const jsonFilePath = path.resolve(__dirname, jsonPathMatch[1].trim());
-
-    // Read and parse the JSON file
-    if (!fs.existsSync(jsonFilePath)) {
-      throw new Error(`JSON file not found at path: ${jsonFilePath}`);
-    }
-    const jsonData = fs.readFileSync(jsonFilePath, "utf-8");
-    const clients: ClientData[] = JSON.parse(jsonData);
-
-    // Construct the new "Examples" section
-    let examplesSection = "    Examples:\n";
-    clients.forEach((client) => {
-      examplesSection += `      | ${client.client_num} | ${client.client_name} |\n`;
-    });
-
-    // Replace the "Examples" section in the existing feature file
-    const updatedContent = existingContent.replace(
-      /Examples:\n([\s\S]*?)(\n\s*\n|$)/,
-      `${examplesSection}\n`
-    );
-
-    // Write the updated content to the output file
-    fs.writeFileSync(outputFilePath, updatedContent, "utf-8");
-    console.log(`Feature file updated successfully at: ${outputFilePath}`);
-  } catch (error) {
-    console.error("Error updating feature file:", error.message);
-  }
-};
-
-
-
-
-
-import { test } from "@playwright/test";
-import { updateFeatureFile } from "./utils/updateFeatureFile";
-import * as path from "path";
-
-test.beforeAll(async () => {
-  // Define file paths
-  const existingFeatureFilePath = path.resolve(__dirname, "features/existing_feature.feature");
-  const outputFilePath = path.resolve(__dirname, "features/updated_feature.feature");
-
-  // Update the feature file
-  await updateFeatureFile(existingFeatureFilePath, outputFilePath);
-});
-
-test("Validate feature file update", async ({}) => {
-  console.log("Feature file updated. Proceed with further testing.");
-});
+// Replace 'your_project_directory' with the actual path
+findJSONExamples('your_project_directory');
