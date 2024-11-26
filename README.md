@@ -1,4 +1,40 @@
-function jsonToPipeDelimited(jsonData: any[]): string {
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Function to retrieve data from a nested array or object within the JSON structure
+function getNestedData(jsonData: any[], nestedPath: string): any[] {
+  const results: any[] = [];
+
+  // Traverse each object in the JSON array
+  jsonData.forEach(item => {
+    const value = nestedPath.split('.').reduce((acc, key) => {
+      // If the current key exists in the object, navigate deeper
+      if (acc && acc[key] !== undefined) {
+        return acc[key];
+      }
+      return null;
+    }, item);
+
+    // If it's an array, push the contents of the array to results
+    if (Array.isArray(value)) {
+      results.push(...value);
+    } else if (value !== null) {
+      // If it's a primitive or an object, include the value
+      results.push(value);
+    }
+  });
+
+  return results;
+}
+
+// Function to load JSON data from a file
+function loadJsonData(filePath: string): any[] {
+  const fileContent = fs.readFileSync(filePath, 'utf-8');
+  return JSON.parse(fileContent);
+}
+
+// Function to convert JSON structure to pipe-delimited string format (like for Scenario Outline)
+function jsonToPipeDelimited(jsonData: any[], fileName: string): string {
   const keys: string[] = [];
   const exampleValues: string[] = [];
 
@@ -29,28 +65,27 @@ function jsonToPipeDelimited(jsonData: any[]): string {
   const headerRow = `| ${keys.join(' | ')} |`;
   const exampleRow = `| ${exampleValues.join(' | ')} |`;
 
-  return `${headerRow}\n${exampleRow}`;
+  // Include fileName as part of the result
+  const formattedFileName = `${fileName},${exampleValues.join(' | ')}`;
+  
+  return `${headerRow}\n${exampleRow}\nFile: ${formattedFileName}`;
 }
 
-// Example JSON data (replace this with your actual data)
-const jsonData = [
-  {
-    id: "0001",
-    type: "donut",
-    name: "Cake",
-    ppu: 0.55,
-    batters: {
-      batter: [
-        { id: "1001", type: "Regular" },
-        { id: "1002", type: "Chocolate" }
-      ]
-    },
-    topping: [
-      { id: "5001", type: "None" },
-      { id: "5002", type: "Glazed" }
-    ]
-  }
-];
+// Example usage:
 
-// Convert and print result
-console.log(jsonToPipeDelimited(jsonData));
+// Path to your long.json file
+const jsonFilePath = 'path/to/your/long.json';
+
+// Get the file name without extension
+const fileName = path.basename(jsonFilePath, '.json');
+
+// Load JSON data from file
+const jsonData = loadJsonData(jsonFilePath);
+
+// Retrieve and print data from the 'batters.batter' array
+const batterData = getNestedData(jsonData, 'batters.batter');
+console.log('Batter Data:', batterData);
+
+// Convert and print Scenario Outline format with file name
+const pipeDelimited = jsonToPipeDelimited(jsonData, fileName);
+console.log('Pipe Delimited:', pipeDelimited);
