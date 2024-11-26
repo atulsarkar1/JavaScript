@@ -1,36 +1,29 @@
-// Function to convert JSON schema to pipe-delimited format with unique placeholders for nested structures
-function jsonSchemaToPipeDelimited(schema: any, parentKey: string = ''): string {
-  const properties = schema.properties;
-  
-  // Validate the schema structure
-  if (!properties) {
-    throw new Error("Invalid schema: 'properties' field is required.");
-  }
-
+function jsonToPipeDelimited(jsonData: any[]): string {
   const keys: string[] = [];
   const exampleValues: string[] = [];
 
-  // Traverse through each property
-  for (const key in properties) {
-    if (properties.hasOwnProperty(key)) {
-      const prop = properties[key];
-      const uniqueKey = parentKey ? `${parentKey}_${key}` : key;
+  // Traverse the first item in the array to extract keys
+  const processObject = (obj: any, parentKey: string = '') => {
+    for (const key in obj) {
+      const value = obj[key];
+      const compositeKey = parentKey ? `${parentKey}_${key}` : key;
 
-      if (prop.type === 'object') {
-        // Handle nested object by storing its reference key
-        keys.push(key);
-        exampleValues.push(`[Object: ${uniqueKey}]`);
-      } else if (prop.type === 'array') {
-        // Handle arrays, assuming a uniform type for simplicity
-        keys.push(key);
-        exampleValues.push(`[Array: ${uniqueKey}]`);
+      if (Array.isArray(value)) {
+        // Handle arrays
+        keys.push(compositeKey);
+        exampleValues.push(`[Array: ${compositeKey}]`);
+      } else if (typeof value === 'object' && value !== null) {
+        // Handle nested objects recursively
+        processObject(value, compositeKey);
       } else {
-        // Handle primitive types
-        keys.push(key);
-        exampleValues.push(`example_${key}`);
+        // Handle primitive values
+        keys.push(compositeKey);
+        exampleValues.push(`example_${compositeKey}`);
       }
     }
-  }
+  };
+
+  processObject(jsonData[0]); // Process the first object to extract headers
 
   // Construct header and example rows
   const headerRow = `| ${keys.join(' | ')} |`;
@@ -39,35 +32,25 @@ function jsonSchemaToPipeDelimited(schema: any, parentKey: string = ''): string 
   return `${headerRow}\n${exampleRow}`;
 }
 
-// Example JSON schema with nested objects and arrays
-const nestedSchema = {
-  type: "object",
-  properties: {
-    name: { type: "string" },
-    address: {
-      type: "object",
-      properties: {
-        city: { type: "string" },
-        zip: { type: "integer" }
-      }
+// Example JSON data (replace this with your actual data)
+const jsonData = [
+  {
+    id: "0001",
+    type: "donut",
+    name: "Cake",
+    ppu: 0.55,
+    batters: {
+      batter: [
+        { id: "1001", type: "Regular" },
+        { id: "1002", type: "Chocolate" }
+      ]
     },
-    contacts: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          phone: { type: "string" },
-          email: { type: "string" }
-        }
-      }
-    },
-    age: { type: "integer" }
+    topping: [
+      { id: "5001", type: "None" },
+      { id: "5002", type: "Glazed" }
+    ]
   }
-};
+];
 
 // Convert and print result
-try {
-  console.log(jsonSchemaToPipeDelimited(nestedSchema));
-} catch (error) {
-  console.error(error.message);
-}
+console.log(jsonToPipeDelimited(jsonData));
