@@ -1,53 +1,54 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Function to retrieve data from a nested array or object within the JSON structure
-function getNestedData(jsonData: any[], nestedPath: string): any[] {
-  const results: any[] = [];
+// Function to extract and save nested objects/arrays and replace them with references
+function extractAndReplace(jsonData: any, outputDir: string): any {
+  const extractedData: Record<string, string> = {};
 
-  // Traverse each object in the JSON array
-  jsonData.forEach(item => {
-    const value = nestedPath.split('.').reduce((acc, key) => {
-      // If the current key exists in the object, navigate deeper
-      if (acc && acc[key] !== undefined) {
-        return acc[key];
+  const processObject = (obj: any, parentKey: string = ''): any => {
+    if (Array.isArray(obj)) {
+      // Extract arrays and save to a file
+      const arrayKey = `${parentKey}`;
+      extractedData[arrayKey] = saveToFile(obj, arrayKey, outputDir);
+      return `{{${arrayKey}}}`;
+    } else if (typeof obj === 'object' && obj !== null) {
+      // Recursively process each key in the object
+      const newObj: any = {};
+      for (const key in obj) {
+        const compositeKey = parentKey ? `${parentKey}_${key}` : key;
+        newObj[key] = processObject(obj[key], compositeKey);
       }
-      return null;
-    }, item);
-
-    // If it's an array, push the contents of the array to results
-    if (Array.isArray(value)) {
-      results.push(...value);
-    } else if (value !== null) {
-      // If it's a primitive or an object, include the value
-      results.push(value);
+      return newObj;
     }
-  });
+    return obj; // Return primitive values as is
+  };
 
-  return results;
+  // Save extracted data to separate files
+  const saveToFile = (data: any, key: string, outputDir: string): string => {
+    const fileName = `${key}.json`;
+    const filePath = path.join(outputDir, fileName);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    return fileName;
+  };
+
+  const processedData = processObject(jsonData);
+  return { processedData, extractedData };
 }
 
-// Function to load JSON data from a file
-function loadJsonData(filePath: string): any[] {
-  const fileContent = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(fileContent);
-}
-
-// Function to convert JSON structure to pipe-delimited string format (like for Scenario Outline)
-function jsonToPipeDelimited(jsonData: any[], fileName: string): string {
+// Function to convert JSON structure to pipe-delimited string
+function jsonToPipeDelimited(jsonData: any, extractedData: Record<string, string>): string {
   const keys: string[] = [];
   const exampleValues: string[] = [];
 
-  // Traverse the first item in the array to extract keys
   const processObject = (obj: any, parentKey: string = '') => {
     for (const key in obj) {
       const value = obj[key];
       const compositeKey = parentKey ? `${parentKey}_${key}` : key;
 
-      if (Array.isArray(value)) {
-        // Handle arrays
+      if (typeof value === 'string' && value.startsWith('{{')) {
+        // Handle extracted references
         keys.push(compositeKey);
-        exampleValues.push(`[Array: ${compositeKey}]`);
+        exampleValues.push(value);
       } else if (typeof value === 'object' && value !== null) {
         // Handle nested objects recursively
         processObject(value, compositeKey);
@@ -59,33 +60,27 @@ function jsonToPipeDelimited(jsonData: any[], fileName: string): string {
     }
   };
 
-  processObject(jsonData[0]); // Process the first object to extract headers
+  processObject(jsonData);
 
   // Construct header and example rows
   const headerRow = `| ${keys.join(' | ')} |`;
   const exampleRow = `| ${exampleValues.join(' | ')} |`;
 
-  // Include fileName as part of the result
-  const formattedFileName = `${fileName},${exampleValues.join(' | ')}`;
-  
-  return `${headerRow}\n${exampleRow}\nFile: ${formattedFileName}`;
+  return `${headerRow}\n${exampleRow}`;
 }
 
-// Example usage:
-
-// Path to your long.json file
+// Example usage
 const jsonFilePath = 'path/to/your/long.json';
-
-// Get the file name without extension
-const fileName = path.basename(jsonFilePath, '.json');
+const outputDir = 'path/to/output/dir'; // Ensure this directory exists
 
 // Load JSON data from file
-const jsonData = loadJsonData(jsonFilePath);
+const jsonData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf-8'));
 
-// Retrieve and print data from the 'batters.batter' array
-const batterData = getNestedData(jsonData, 'batters.batter');
-console.log('Batter Data:', batterData);
+// Extract and replace nested structures
+const { processedData, extractedData } = extractAndReplace(jsonData, outputDir);
 
-// Convert and print Scenario Outline format with file name
-const pipeDelimited = jsonToPipeDelimited(jsonData, fileName);
+// Convert and print Scenario Outline format with references
+const pipeDelimited = jsonToPipeDelimited(processedData, extractedData);
+console.log('Processed Data:', JSON.stringify(processedData, null, 2));
 console.log('Pipe Delimited:', pipeDelimited);
+console.log('Extracted Files:', extractedData);
