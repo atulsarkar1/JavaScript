@@ -1,19 +1,14 @@
-import { Sequelize } from "sequelize";
+import { sequelize } from "./db-config";
 
-export const sequelize = new Sequelize("your_database_name", "your_username", "your_password", {
-  host: "your_host", // e.g., "localhost"
-  dialect: "oracle",
-  dialectOptions: {
-    connectString: "your_host:your_port/your_service_name", // e.g., "localhost:1521/xe"
-  },
-  logging: false, // Disable SQL query logging for cleaner output
-});
-
-export async function testConnection(): Promise<void> {
+export async function executeSelectQuery(query: string, replacements: any[] = []): Promise<any[]> {
   try {
-    await sequelize.authenticate();
-    console.log("Connection has been established successfully.");
+    const [results] = await sequelize.query(query, {
+      replacements, // Use for parameterized queries
+      type: sequelize.QueryTypes.SELECT, // Ensures SELECT query is enforced
+    });
+    return results;
   } catch (error) {
-    console.error("Unable to connect to the database:", error);
+    console.error("Error executing SELECT query:", error);
+    throw error;
   }
 }
