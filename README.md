@@ -1,32 +1,39 @@
 import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as xlsx from 'xlsx';
+import * as path from 'path';
 
 // Function to create an Excel workbook with test results
 const createExcelReport = (testResults: any[]) => {
-  const ws = xlsx.utils.json_to_sheet(testResults);
-  const wb = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(wb, ws, 'Test Results');
-  xlsx.writeFile(wb, 'test_results.xlsx');
+  const workbook = xlsx.utils.book_new();
+  const worksheet = xlsx.utils.json_to_sheet(testResults);
+  xlsx.utils.book_append_sheet(workbook, worksheet, 'Test Results');
+
+  // Add images to the worksheet
+  testResults.forEach((result, index) => {
+    if (result.ScreenshotPath) {
+      const imageData = fs.readFileSync(result.ScreenshotPath);
+      const image = xlsx.utils.decode_file(result.ScreenshotPath); 
+      const imageCell = `C${index + 2}`; // Place image in column C starting from row 2
+      xlsx.utils.sheet_add_image(worksheet, {
+        image: image,
+        type: 'png', 
+        position: {
+          type: 'oneCell',
+          ref: imageCell,
+        },
+      });
+    }
+  });
+
+  xlsx.writeFile(workbook, 'test_results.xlsx');
 };
 
 test('Login to Google', async ({ page, testInfo }) => {
-  // Navigate to Google
-  await page.goto('https://www.google.com');
-
-  // Click the sign-in button (adjust the selector as needed)
-  await page.click('a[href*="/accounts/"]'); 
-
-  // Enter your email address
-  await page.fill('input[type="email"]', 'your_email@gmail.com');
-  await page.keyboard.press('Enter');
-
-  // Enter your password
-  await page.fill('input[type="password"]', 'your_password');
-  await page.keyboard.press('Enter');
+  // ... (Your Google login logic here) ...
 
   // Take a screenshot
-  const screenshotPath = `screenshots/${testInfo.title.replace(/ /g, '_')}.png`;
+  const screenshotPath = path.join(__dirname, 'screenshots', `${testInfo.title.replace(/ /g, '_')}.png`);
   await page.screenshot({ path: screenshotPath });
 
   // Prepare test result data for Excel
@@ -37,24 +44,12 @@ test('Login to Google', async ({ page, testInfo }) => {
   };
 
   // Store test result in an array
-  const testResults: any[] = []; // Initialize an array to store test results
+  const testResults: any[] = [];
   testResults.push(testResult);
 
-  // Assert that the user is logged in 
-  // (e.g., check for the user's profile picture or name)
-  const usernameElement = await page.$('//span[contains(text(), "Your Name")]'); 
-  await expect(usernameElement).toBeVisible(); 
-
+  // ... (Your assertions here) ... 
 });
 
 // Create Excel report after all tests have finished
-// (This should be in an 'afterAll' hook in your test configuration)
+// (This should be in your test configuration file - playwright.config.ts)
 // createExcelReport(testResults); 
-
-// Note: 
-// 1. Replace 'your_email@gmail.com' and 'your_password' with your actual credentials.
-// 2. Adjust the selectors ('a[href*="/accounts/"]', 'input[type="email"]', etc.) 
-//    if the Google login page elements have changed.
-// 3. The 'afterAll' hook and the `createExcelReport` call should be placed 
-//    in your test configuration file (e.g., playwright.config.ts).
-
