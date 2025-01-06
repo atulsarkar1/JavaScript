@@ -1,24 +1,63 @@
-import { test, expect } from "@playwright/test";
-import { sequelize } from "../db-config";
-import { executeSelectQuery } from "../db-utils";
+import * as XLSX from 'xlsx';
+import * as fs from 'fs';
+import * as path from 'path';
 
-test.beforeAll(async () => {
-  await sequelize.authenticate();
-});
+let runDirectory: string | null = null;
 
-test.afterAll(async () => {
-  await sequelize.close();
-});
+/**
+ * Creates a timestamped directory for the test run.
+ * This directory will hold all Excel files for the current run.
+ */
+const createRunDirectory = (): string => {
+    if (!runDirectory) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // Format timestamp
+        runDirectory = path.resolve(__dirname, `../results/run-${timestamp}`);
+        if (!fs.existsSync(runDirectory)) {
+            fs.mkdirSync(runDirectory, { recursive: true });
+        }
+    }
+    return runDirectory;
+};
 
-test("Validate SELECT query results from Oracle DB", async () => {
-  const query = "SELECT column1, column2 FROM your_table WHERE column1 = :value";
-  const params = ["expected_value"]; // Replace with your actual value
+/**
+ * Creates an Excel file for the scenario if it doesn't exist.
+ * @param scenarioName Name of the scenario.
+ */
+export const createExcelForScenario = (scenarioName: string): string => {
+    const runDir = createRunDirectory();
+    const filePath = path.resolve(runDir, `${scenarioName}.xlsx`);
+    if (!fs.existsSync(filePath)) {
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.aoa_to_sheet([["Step", "Screenshot"]]);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
+        XLSX.writeFile(workbook, filePath);
+    }
+    return filePath;
+};
 
-  const results = await executeSelectQuery(query, params);
+/**
+ * Adds a screenshot to the Excel file for the given scenario and step.
+ * @param scenarioName Name of the scenario.
+ * @param stepName Name of the step.
+ * @param screenshotPath Path to the screenshot file.
+ */
+export const addScreenshotToExcel = (scenarioName: string, stepName: string, screenshotPath: string) => {
+    const filePath = createExcelForScenario(scenarioName);
+    const workbook = XLSX.readFile(filePath);
+    const worksheet = workbook.Sheets["Results"];
+    const lastRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 }).length;
 
-  console.log("Query Results: ", results);
+    // Convert screenshot to base64
+    const screenshotBase64 = fs.readFileSync(screenshotPath, { encoding: 'base64' });
+    const newRow = [[stepName, `data:image/png;base64,${screenshotBase64}`]];
 
-  // Perform validations
-  expect(results.length).toBeGreaterThan(0); // Ensure data exists
-  expect(results[0]).toHaveProperty("COLUMN1", "expected_value"); // Validate specific column value
-});
+    XLSX.utils.sheet_add_aoa(worksheet, newRow, { origin: `A${lastRow + 1}` });
+    XLSX.writeFile(workbook, filePath);
+};
+
+/**
+ * Returns the path of the current run directory.
+ */
+export const getRunDirectory = (): string => {
+    return createRunDirectory();
+};
