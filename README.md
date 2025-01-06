@@ -6,7 +6,7 @@ let runDirectory: string | null = null;
 
 /**
  * Creates a timestamped directory for the test run.
- * This directory will hold all Excel files for the current run.
+ * This directory will hold all Excel files and screenshots for the current run.
  */
 const createRunDirectory = (): string => {
     if (!runDirectory) {
@@ -28,7 +28,7 @@ export const createExcelForScenario = (scenarioName: string): string => {
     const filePath = path.resolve(runDir, `${scenarioName}.xlsx`);
     if (!fs.existsSync(filePath)) {
         const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.aoa_to_sheet([["Step", "Screenshot"]]);
+        const worksheet = XLSX.utils.aoa_to_sheet([["Step", "Screenshot Path"]]); // Only store paths
         XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
         XLSX.writeFile(workbook, filePath);
     }
@@ -36,7 +36,7 @@ export const createExcelForScenario = (scenarioName: string): string => {
 };
 
 /**
- * Adds a screenshot to the Excel file for the given scenario and step.
+ * Adds a screenshot path to the Excel file for the given scenario and step.
  * @param scenarioName Name of the scenario.
  * @param stepName Name of the step.
  * @param screenshotPath Path to the screenshot file.
@@ -47,9 +47,7 @@ export const addScreenshotToExcel = (scenarioName: string, stepName: string, scr
     const worksheet = workbook.Sheets["Results"];
     const lastRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 }).length;
 
-    // Convert screenshot to base64
-    const screenshotBase64 = fs.readFileSync(screenshotPath, { encoding: 'base64' });
-    const newRow = [[stepName, `data:image/png;base64,${screenshotBase64}`]];
+    const newRow = [[stepName, screenshotPath]]; // Store the file path instead of Base64
 
     XLSX.utils.sheet_add_aoa(worksheet, newRow, { origin: `A${lastRow + 1}` });
     XLSX.writeFile(workbook, filePath);
