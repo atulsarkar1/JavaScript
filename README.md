@@ -1,55 +1,81 @@
-import { test, expect } from '@playwright/test';
+import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
-import * as xlsx from 'xlsx';
 import * as path from 'path';
 
-// Function to create an Excel workbook with test results
-const createExcelReport = (testResults: any[]) => {
-  const workbook = xlsx.utils.book_new();
-  const worksheet = xlsx.utils.json_to_sheet(testResults);
-  xlsx.utils.book_append_sheet(workbook, worksheet, 'Test Results');
+let runDirectory: string | null = null;
 
-  // Add images to the worksheet
-  testResults.forEach((result, index) => {
-    if (result.ScreenshotPath) {
-      const imageData = fs.readFileSync(result.ScreenshotPath);
-      const image = xlsx.utils.decode_file(result.ScreenshotPath); 
-      const imageCell = `C${index + 2}`; // Place image in column C starting from row 2
-      xlsx.utils.sheet_add_image(worksheet, {
-        image: image,
-        type: 'png', 
-        position: {
-          type: 'oneCell',
-          ref: imageCell,
-        },
-      });
+/**
+ * Creates a timestamped directory for the test run.
+ * This directory will hold all Excel files and screenshots for the current run.
+ */
+const createRunDirectory = (): string => {
+    if (!runDirectory) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // Format timestamp
+        runDirectory = path.resolve(__dirname, `../results/run-${timestamp}`);
+        if (!fs.existsSync(runDirectory)) {
+            fs.mkdirSync(runDirectory, { recursive: true });
+        }
     }
-  });
-
-  xlsx.writeFile(workbook, 'test_results.xlsx');
+    return runDirectory;
 };
 
-test('Login to Google', async ({ page, testInfo }) => {
-  // ... (Your Google login logic here) ...
+/**
+ * Creates an Excel file for the scenario if it doesn't exist.
+ * @param scenarioName Name of the scenario.
+ */
+export const createExcelForScenario = (scenarioName: string): string => {
+    const runDir = createRunDirectory();
+    const filePath = path.resolve(runDir, `${scenarioName}.xlsx`);
+    if (!fs.existsSync(filePath)) {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Results');
+        worksheet.columns = [
+            { header: 'Step', key: 'step', width: 30 },
+            { header: 'Screenshot', key: 'screenshot', width: 50 },
+        ];
+        workbook.xlsx.writeFile(filePath);
+    }
+    return filePath;
+};
 
-  // Take a screenshot
-  const screenshotPath = path.join(__dirname, 'screenshots', `${testInfo.title.replace(/ /g, '_')}.png`);
-  await page.screenshot({ path: screenshotPath });
+/**
+ * Adds the screenshot as an image to the Excel file for the given scenario and step.
+ * @param scenarioName Name of the scenario.
+ * @param stepName Name of the step.
+ * @param screenshotPath Path to the screenshot file.
+ */
+export const addScreenshotToExcel = async (scenarioName: string, stepName: string, screenshotPath: string) => {
+    const filePath = createExcelForScenario(scenarioName);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
 
-  // Prepare test result data for Excel
-  const testResult = {
-    TestName: testInfo.title,
-    Status: testInfo.status,
-    ScreenshotPath: screenshotPath,
-  };
+    const worksheet = workbook.getWorksheet('Results');
+    const lastRow = worksheet.lastRow ? worksheet.lastRow.number : 1;
 
-  // Store test result in an array
-  const testResults: any[] = [];
-  testResults.push(testResult);
+    // Add step description in the first column
+    worksheet.addRow({ step: stepName });
 
-  // ... (Your assertions here) ... 
-});
+    // Read the screenshot image and add it as an embedded image
+    const imageBuffer = fs.readFileSync(screenshotPath);
+    const imageId = workbook.addImage({
+        buffer: imageBuffer,
+        extension: 'png',
+    });
 
-// Create Excel report after all tests have finished
-// (This should be in your test configuration file - playwright.config.ts)
-// createExcelReport(testResults); 
+    // Add the image to the second column of the row
+    worksheet.getRow(lastRow + 1).getCell(2).value = { text: 'Embedded Image' }; // Optional text
+    worksheet.getRow(lastRow + 1).getCell(2).style = { alignment: { vertical: 'middle', horizontal: 'center' } };
+    worksheet.getRow(lastRow + 1).getCell(2).addImage(imageId, {
+        tl: { col: 1, row: lastRow }, // Position image
+        ext: { width: 200, height: 150 }, // Set image size
+    });
+
+    await workbook.xlsx.writeFile(filePath);
+};
+
+/**
+ * Returns the path of the current run directory.
+ */
+export const getRunDirectory = (): string => {
+    return createRunDirectory();
+};
