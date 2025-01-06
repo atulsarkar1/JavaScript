@@ -10,8 +10,20 @@ const createExcelReport = (testResults: any[]) => {
   xlsx.writeFile(wb, 'test_results.xlsx');
 };
 
-test('My Test', async ({ page, testInfo }) => {
-  // ... Your test logic here ...
+test('Login to Google', async ({ page, testInfo }) => {
+  // Navigate to Google
+  await page.goto('https://www.google.com');
+
+  // Click the sign-in button (adjust the selector as needed)
+  await page.click('a[href*="/accounts/"]'); 
+
+  // Enter your email address
+  await page.fill('input[type="email"]', 'your_email@gmail.com');
+  await page.keyboard.press('Enter');
+
+  // Enter your password
+  await page.fill('input[type="password"]', 'your_password');
+  await page.keyboard.press('Enter');
 
   // Take a screenshot
   const screenshotPath = `screenshots/${testInfo.title.replace(/ /g, '_')}.png`;
@@ -24,11 +36,25 @@ test('My Test', async ({ page, testInfo }) => {
     ScreenshotPath: screenshotPath,
   };
 
-  // Store test result in an array (replace with your preferred storage mechanism)
+  // Store test result in an array
   const testResults: any[] = []; // Initialize an array to store test results
   testResults.push(testResult);
 
-  // Create Excel report after all tests have finished
-  // (You might want to do this in an 'afterAll' hook)
-  createExcelReport(testResults);
+  // Assert that the user is logged in 
+  // (e.g., check for the user's profile picture or name)
+  const usernameElement = await page.$('//span[contains(text(), "Your Name")]'); 
+  await expect(usernameElement).toBeVisible(); 
+
 });
+
+// Create Excel report after all tests have finished
+// (This should be in an 'afterAll' hook in your test configuration)
+// createExcelReport(testResults); 
+
+// Note: 
+// 1. Replace 'your_email@gmail.com' and 'your_password' with your actual credentials.
+// 2. Adjust the selectors ('a[href*="/accounts/"]', 'input[type="email"]', etc.) 
+//    if the Google login page elements have changed.
+// 3. The 'afterAll' hook and the `createExcelReport` call should be placed 
+//    in your test configuration file (e.g., playwright.config.ts).
+
