@@ -1,81 +1,45 @@
 import * as ExcelJS from 'exceljs';
 import * as fs from 'fs';
-import * as path from 'path';
 
-let runDirectory: string | null = null;
-
-/**
- * Creates a timestamped directory for the test run.
- * This directory will hold all Excel files and screenshots for the current run.
- */
-const createRunDirectory = (): string => {
-    if (!runDirectory) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // Format timestamp
-        runDirectory = path.resolve(__dirname, `../results/run-${timestamp}`);
-        if (!fs.existsSync(runDirectory)) {
-            fs.mkdirSync(runDirectory, { recursive: true });
-        }
-    }
-    return runDirectory;
-};
-
-/**
- * Creates an Excel file for the scenario if it doesn't exist.
- * @param scenarioName Name of the scenario.
- */
-export const createExcelForScenario = (scenarioName: string): string => {
-    const runDir = createRunDirectory();
-    const filePath = path.resolve(runDir, `${scenarioName}.xlsx`);
+async function getFundData(filePath: string, fundId: string, headerName: string): Promise<string | null> {
     if (!fs.existsSync(filePath)) {
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Results');
-        worksheet.columns = [
-            { header: 'Step', key: 'step', width: 30 },
-            { header: 'Screenshot', key: 'screenshot', width: 50 },
-        ];
-        workbook.xlsx.writeFile(filePath);
+        console.error('File not found:', filePath);
+        return null;
     }
-    return filePath;
-};
 
-/**
- * Adds the screenshot as an image to the Excel file for the given scenario and step.
- * @param scenarioName Name of the scenario.
- * @param stepName Name of the step.
- * @param screenshotPath Path to the screenshot file.
- */
-export const addScreenshotToExcel = async (scenarioName: string, stepName: string, screenshotPath: string) => {
-    const filePath = createExcelForScenario(scenarioName);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
+    const worksheet = workbook.worksheets[0]; // Assuming data is in the first sheet
 
-    const worksheet = workbook.getWorksheet('Results');
-    const lastRow = worksheet.lastRow ? worksheet.lastRow.number : 1;
+    let headerIndex: number | null = null;
+    let result: string | null = null;
 
-    // Add step description in the first column
-    worksheet.addRow({ step: stepName });
-
-    // Read the screenshot image and add it as an embedded image
-    const imageBuffer = fs.readFileSync(screenshotPath);
-    const imageId = workbook.addImage({
-        buffer: imageBuffer,
-        extension: 'png',
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+            // Find the column index of the header
+            row.eachCell((cell, colNumber) => {
+                if (cell.value && cell.value.toString().trim().toLowerCase() === headerName.trim().toLowerCase()) {
+                    headerIndex = colNumber;
+                }
+            });
+        } else if (headerIndex !== null) {
+            // Check if the Fund ID matches
+            const fundIdCell = row.getCell(1).value; // Assuming Fund ID is in column 1 (A)
+            if (fundIdCell && fundIdCell.toString().trim() === fundId) {
+                result = row.getCell(headerIndex).value as string;
+            }
+        }
     });
 
-    // Add the image to the second column of the row
-    worksheet.getRow(lastRow + 1).getCell(2).value = { text: 'Embedded Image' }; // Optional text
-    worksheet.getRow(lastRow + 1).getCell(2).style = { alignment: { vertical: 'middle', horizontal: 'center' } };
-    worksheet.getRow(lastRow + 1).getCell(2).addImage(imageId, {
-        tl: { col: 1, row: lastRow }, // Position image
-        ext: { width: 200, height: 150 }, // Set image size
-    });
+    return result;
+}
 
-    await workbook.xlsx.writeFile(filePath);
-};
+// Usage Example
+(async () => {
+    const filePath = '/mnt/data/file-6jhVgiFh98EQmy7uBwzrsM'; // Path to uploaded file
+    const fundId = 'SGCI2';
+    const headerName = 'Fund Name in System';
 
-/**
- * Returns the path of the current run directory.
- */
-export const getRunDirectory = (): string => {
-    return createRunDirectory();
-};
+    const value = await getFundData(filePath, fundId, headerName);
+    console.log(`Value for Fund ID ${fundId}:`, value);
+})();
